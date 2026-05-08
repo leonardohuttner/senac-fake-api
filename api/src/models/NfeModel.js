@@ -71,6 +71,11 @@ async function findById(id) {
   return parseRow(row);
 }
 
+async function findByChaveAcesso(chaveAcesso) {
+  const row = await get('SELECT * FROM notas WHERE chave_acesso = ?', [chaveAcesso]);
+  return parseRow(row);
+}
+
 async function update(id, nota) {
   const payload = toRowPayload(nota);
   await run(
@@ -108,6 +113,7 @@ export default {
   create,
   findAll,
   findById,
+  findByChaveAcesso,
   update,
   deleteOlderThan
 };

@@ -2,6 +2,7 @@ import NfeModel from '../models/NfeModel.js';
 import nfeView from '../views/nfeView.js';
 
 const STATUS_VALIDOS = ['Pendente', 'Autorizada', 'Não Autorizada', 'Erro'];
+const TAGS_XML_OBRIGATORIAS = ['infNFe', 'ide', 'emit', 'dest', 'det', 'prod', 'total', 'ICMSTot'];
 
 function somenteDigitos(valor) {
   return String(valor || '').replace(/\D/g, '');
@@ -16,6 +17,127 @@ function arredondar(valor) {
   return Math.round(Number(valor) * 100) / 100;
 }
 
+function escaparXml(valor) {
+  return String(valor ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function tagExiste(xml, tag) {
+  return new RegExp(`<${tag}(\\s|>|/)`, 'i').test(xml);
+}
+
+function conteudoTag(xml, tag) {
+  const match = String(xml || '').match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'i'));
+  return match ? match[1].trim() : '';
+}
+
+function blocosTag(xml, tag) {
+  return String(xml || '').match(new RegExp(`<${tag}(?:\\s[^>]*)?>[\\s\\S]*?<\\/${tag}>`, 'gi')) || [];
+}
+
+function validarEstruturaXml(xml) {
+  if (!xml.trim()) {
+    return 'XML da NF-e e obrigatorio.';
+  }
+
+  const faltando = TAGS_XML_OBRIGATORIAS.filter((tag) => !tagExiste(xml, tag));
+  if (faltando.length) {
+    return `XML invalido. Tags ausentes: ${faltando.map((tag) => `<${tag}>`).join(', ')}.`;
+  }
+
+  return null;
+}
+
+function extrairNotaDoXml(xml) {
+  const erroEstrutura = validarEstruturaXml(xml);
+  if (erroEstrutura) {
+    return { erro: erroEstrutura };
+  }
+
+  const ide = conteudoTag(xml, 'ide');
+  const emit = conteudoTag(xml, 'emit');
+  const dest = conteudoTag(xml, 'dest');
+  const total = conteudoTag(xml, 'ICMSTot') || conteudoTag(xml, 'total');
+  const itens = blocosTag(xml, 'det').map((det, index) => {
+    const prod = conteudoTag(det, 'prod') || det;
+    const quantidade = Number(conteudoTag(prod, 'qCom') || conteudoTag(prod, 'quantidade') || 0);
+    const valorUnitario = Number(conteudoTag(prod, 'vUnCom') || conteudoTag(prod, 'valor_unitario') || 0);
+    const valorTotalItem = Number(conteudoTag(prod, 'vProd') || conteudoTag(prod, 'valor_total_item') || 0);
+
+    return {
+      descricao: conteudoTag(prod, 'xProd') || conteudoTag(prod, 'descricao') || `Item ${index + 1}`,
+      quantidade,
+      valor_unitario: valorUnitario,
+      valor_total_item: valorTotalItem
+    };
+  });
+
+  return {
+    nota: normalizarNota({
+      numero_nf: conteudoTag(ide, 'nNF'),
+      serie: conteudoTag(ide, 'serie') || conteudoTag(ide, 'serieNF') || conteudoTag(ide, 'nSerie'),
+      emitente: {
+        cnpj: conteudoTag(emit, 'CNPJ')
+      },
+      destinatario: {
+        nome: conteudoTag(dest, 'xNome'),
+        documento: conteudoTag(dest, 'CNPJ') || conteudoTag(dest, 'CPF')
+      },
+      itens,
+      total_da_nota: Number(conteudoTag(total, 'vNF') || conteudoTag(total, 'total_da_nota') || 0),
+      xml_original: xml
+    })
+  };
+}
+
+function objetoParaXml(nome, valor) {
+  if (Array.isArray(valor)) {
+    return valor.map((item) => objetoParaXml(nome === 'itens' ? 'item' : nome, item)).join('');
+  }
+
+  if (valor && typeof valor === 'object') {
+    const filhos = Object.entries(valor)
+      .filter(([chave]) => chave !== 'xml_original')
+      .map(([chave, item]) => objetoParaXml(chave, item))
+      .join('');
+    return `<${nome}>${filhos}</${nome}>`;
+  }
+
+  return `<${nome}>${escaparXml(valor)}</${nome}>`;
+}
+
+function respostaXml(res, status, nomeRaiz, payload) {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>${objetoParaXml(nomeRaiz, payload)}`;
+  res.status(status).type('application/xml').send(xml);
+}
+
+function deveResponderJson(req) {
+  const accept = req.get('accept') || '';
+  return Boolean(
+    req.responderJson ||
+      req.query.formato === 'json' ||
+      req.is('application/json') ||
+      accept.includes('application/json')
+  );
+}
+
+function responder(req, res, status, payload, nomeRaiz = 'retorno') {
+  if (deveResponderJson(req)) {
+    res.status(status).json(payload);
+    return;
+  }
+
+  respostaXml(res, status, nomeRaiz, payload);
+}
+
+function responderErro(req, res, status, mensagem) {
+  responder(req, res, status, nfeView.erro(mensagem), 'retErro');
+}
+
 function normalizarNota(body) {
   const numero = body.numero_nf || body.numero || body.numeroNota || '1';
   const destinatarioDocumento = body.destinatario?.documento || body.destinatario?.cpf || body.destinatario?.cnpj || body.destinatario_documento;
@@ -23,7 +145,7 @@ function normalizarNota(body) {
 
   return {
     ...body,
-    numero_nf: String(numero).padStart(9, '0'),
+    numero_nf: String(numero).replace(/\D/g, '').padStart(9, '0'),
     emitente: {
       ...(body.emitente || {}),
       cnpj: somenteDigitos(emitenteCnpj)
@@ -112,18 +234,39 @@ function gerarChaveAcesso(nota) {
   return `${chave43}${calcularDigitoVerificador(chave43)}`;
 }
 
+function notaDaRequisicao(req) {
+  if (typeof req.body === 'string') {
+    return extrairNotaDoXml(req.body);
+  }
+
+  if (req.body?.xml || req.body?.texto) {
+    return extrairNotaDoXml(String(req.body.xml || req.body.texto));
+  }
+
+  return { nota: normalizarNota(req.body || {}) };
+}
+
+function dadosEdicaoDaRequisicao(req) {
+  if (typeof req.body === 'string' || req.body?.xml || req.body?.texto) {
+    return notaDaRequisicao(req);
+  }
+
+  return { nota: req.body || {} };
+}
+
 async function receber(req, res, next) {
   try {
-    const nota = normalizarNota(req.body);
-    const erro = validarNota(nota);
+    const { nota, erro: erroXml } = notaDaRequisicao(req);
+    const erro = erroXml || validarNota(nota);
 
     if (erro) {
-      res.status(400).json(nfeView.erro(erro));
+      responderErro(req, res, 400, erro);
       return;
     }
 
-    const criada = await NfeModel.create({ ...nota, status: 'Pendente' });
-    res.status(201).json(nfeView.recebida(criada));
+    const chaveAcesso = nota.chave_acesso || gerarChaveAcesso(nota);
+    const criada = await NfeModel.create({ ...nota, status: 'Pendente', chave_acesso: chaveAcesso });
+    responder(req, res, 201, nfeView.recebida(criada), 'retRecepcaoNFe');
   } catch (error) {
     next(error);
   }
@@ -131,24 +274,25 @@ async function receber(req, res, next) {
 
 async function autorizar(req, res, next) {
   try {
-    const nota = await NfeModel.findById(req.params.id);
+    const chaveAcesso = somenteDigitos(req.params.chaveAcesso);
+    const nota = await NfeModel.findByChaveAcesso(chaveAcesso);
     if (!nota) {
-      res.status(404).json(nfeView.erro('Nota nao encontrada.'));
+      responderErro(req, res, 404, 'Nota nao encontrada.');
       return;
     }
 
     if (nota.status !== 'Pendente') {
-      res.status(400).json(nfeView.erro('Somente notas com status Pendente podem ser autorizadas.'));
+      responderErro(req, res, 400, 'Somente notas com status Pendente podem ser autorizadas.');
       return;
     }
 
-    const atualizada = await NfeModel.update(req.params.id, {
+    const atualizada = await NfeModel.update(nota.id, {
       ...nota,
       status: 'Autorizada',
-      chave_acesso: gerarChaveAcesso(nota)
+      chave_acesso: nota.chave_acesso || chaveAcesso
     });
 
-    res.json(nfeView.autorizada(atualizada));
+    responder(req, res, 200, nfeView.autorizada(atualizada), 'retAutorizacaoNFe');
   } catch (error) {
     next(error);
   }
@@ -158,7 +302,7 @@ async function listar(req, res, next) {
   try {
     await NfeModel.deleteOlderThan(90);
     const notas = await NfeModel.findAll();
-    res.json(notas);
+    responder(req, res, 200, { notas }, 'retConsultaNFe');
   } catch (error) {
     next(error);
   }
@@ -168,51 +312,68 @@ async function editar(req, res, next) {
   try {
     const existente = await NfeModel.findById(req.params.id);
     if (!existente) {
-      res.status(404).json(nfeView.erro('Nota nao encontrada.'));
+      responderErro(req, res, 404, 'Nota nao encontrada.');
+      return;
+    }
+
+    const { nota: dadosEntrada, erro: erroXml } = dadosEdicaoDaRequisicao(req);
+    if (erroXml) {
+      responderErro(req, res, 400, erroXml);
       return;
     }
 
     const nota = normalizarNota({
       ...existente,
-      ...req.body,
+      ...dadosEntrada,
       emitente: {
         ...(existente.emitente || {}),
-        ...(req.body.emitente || {})
+        ...(dadosEntrada.emitente || {})
       },
       destinatario: {
         ...(existente.destinatario || {}),
-        ...(req.body.destinatario || {})
+        ...(dadosEntrada.destinatario || {})
       },
-      itens: req.body.itens || existente.itens
+      itens: dadosEntrada.itens || existente.itens
     });
     const erro = validarNota(nota);
 
     if (erro) {
-      res.status(400).json(nfeView.erro(erro));
+      responderErro(req, res, 400, erro);
       return;
     }
 
     const atualizada = await NfeModel.update(req.params.id, nota);
-    res.json(nfeView.atualizada(atualizada));
+    responder(req, res, 200, nfeView.atualizada(atualizada), 'retAtualizacaoNFe');
   } catch (error) {
     next(error);
   }
 }
 
 function validarXml(req, res) {
-  const xml = String(req.body?.xml || req.body?.texto || '');
-  const tags = ['infNFe', 'emit', 'dest'];
-  const faltando = tags.filter((tag) => !new RegExp(`<${tag}[\\s>]`, 'i').test(xml));
+  const xml = typeof req.body === 'string' ? req.body : String(req.body?.xml || req.body?.texto || '');
+  const erro = validarEstruturaXml(xml);
 
-  if (faltando.length) {
-    res.status(400).json({
-      valido: false,
-      erro: `XML invalido. Tags ausentes: ${faltando.map((tag) => `<${tag}>`).join(', ')}.`
-    });
+  if (erro) {
+    responder(req, res, 400, { valido: false, erro }, 'retValidacaoXml');
     return;
   }
 
-  res.json({ valido: true, mensagem: 'XML contem as tags obrigatorias.' });
+  const { nota, erro: erroExtracao } = extrairNotaDoXml(xml);
+  const erroNota = erroExtracao || validarNota(nota);
+
+  if (erroNota) {
+    responder(req, res, 400, { valido: false, erro: erroNota }, 'retValidacaoXml');
+    return;
+  }
+
+  responder(req, res, 200, { valido: true, mensagem: 'XML da NF-e contem as tags e valores obrigatorios.' }, 'retValidacaoXml');
+}
+
+function forcarJson(handler) {
+  return (req, res, next) => {
+    req.responderJson = true;
+    return handler(req, res, next);
+  };
 }
 
 export default {
@@ -220,5 +381,10 @@ export default {
   autorizar,
   listar,
   editar,
-  validarXml
+  validarXml,
+  receberJson: forcarJson(receber),
+  autorizarJson: forcarJson(autorizar),
+  listarJson: forcarJson(listar),
+  editarJson: forcarJson(editar),
+  validarXmlJson: forcarJson(validarXml)
 };

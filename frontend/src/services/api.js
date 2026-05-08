@@ -19,31 +19,31 @@ async function request(path, options = {}) {
 }
 
 export function listarNotas() {
-  return request('/nfe');
+  return request('/nfe/json');
 }
 
 export function receberNota(nota) {
-  return request('/nfe/receber', {
+  return request('/nfe/json/receber', {
     method: 'POST',
     body: JSON.stringify(nota)
   });
 }
 
-export function autorizarNota(id) {
-  return request(`/nfe/autorizar/${id}`, {
+export function autorizarNota(chaveAcesso) {
+  return request(`/nfe/json/autorizar/${chaveAcesso}`, {
     method: 'POST'
   });
 }
 
 export function editarNota(id, nota) {
-  return request(`/nfe/${id}`, {
+  return request(`/nfe/json/${id}`, {
     method: 'PUT',
     body: JSON.stringify(nota)
   });
 }
 
 export function validarXml(xml) {
-  return request('/nfe/validar-xml', {
+  return request('/nfe/json/validar-xml', {
     method: 'POST',
     body: JSON.stringify({ xml })
   });
