@@ -1,5 +1,5 @@
 node_modules/
 dist/
-backend/database.sqlite
+api/database.sqlite
 *.log
 .env

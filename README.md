@@ -75,4 +75,4 @@ Valida se um texto XML contem as tags `<infNFe>`, `<emit>` e `<dest>`.
 
 ## Banco de dados
 
-O SQLite fica em `backend/database.sqlite`. A tabela `notas` e criada automaticamente na inicializacao do servidor.
+O SQLite fica em `api/database.sqlite`. A tabela `notas` e criada automaticamente na inicializacao do servidor.
