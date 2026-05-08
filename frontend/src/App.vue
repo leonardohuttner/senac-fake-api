@@ -210,13 +210,17 @@ function cancelarEdicao() {
 
 function imprimirNota(nota) {
   const win = window.open('', '_blank');
+  
+  // Mapeamento dos itens seguindo o padrão da imagem
   const itensHtml = (nota.itens || []).map((item) => `
     <tr>
-      <td>${item.descricao}</td>
-      <td>${item.quantidade}</td>
-      <td>R$ ${Number(item.valor_unitario).toFixed(2)}</td>
-      <td>R$ ${Number(item.valor_total_item).toFixed(2)}</td>
-    </tr>
+      <td style="width: 8%;">${item.codigo || '001'}</td>
+      <td style="width: 32%;">${item.descricao}</td>
+      <td style="width: 10%;">00000000</td> <td style="width: 5%;">000</td>     <td style="width: 5%;">5.102</td>   <td style="width: 5%;">UN</td>
+      <td style="width: 5%;">${item.quantidade}</td>
+      <td style="width: 10%;">${Number(item.valor_unitario).toFixed(2)}</td>
+      <td style="width: 10%;">${Number(item.valor_total_item).toFixed(2)}</td>
+      <td style="width: 5%;">12,00</td>   </tr>
   `).join('');
 
   win.document.write(`
@@ -224,34 +228,141 @@ function imprimirNota(nota) {
       <head>
         <title>DANFE - ${nota.numero_nf}</title>
         <style>
-          body { font-family: Arial, sans-serif; padding: 20px; color: #111827; }
-          .border { border: 1px solid #111827; padding: 10px; margin-bottom: 6px; }
-          .header { text-align: center; font-weight: 700; font-size: 1.1rem; background: #f3f4f6; }
-          table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-          th, td { border: 1px solid #111827; padding: 6px; text-align: left; font-size: 12px; }
-          .total { text-align: right; font-size: 1.1rem; margin-top: 15px; border-top: 2px solid #111827; padding-top: 8px; }
-          .key { overflow-wrap: anywhere; font-size: 11px; }
+          @page { size: portrait; margin: 1cm; }
+          body { font-family: 'Helvetica', 'Arial', sans-serif; margin: 0; padding: 0; color: #000; font-size: 9px; }
+          .container { width: 100%; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: -1px; }
+          td, th { border: 1px solid #000; padding: 2px 4px; vertical-align: top; text-transform: uppercase; }
+          .label { font-size: 7px; display: block; font-weight: bold; }
+          .value { font-size: 10px; display: block; min-height: 12px; }
+          .center { text-align: center; }
+          .bold { font-weight: bold; }
+          .header-danfe { font-size: 14px; text-align: center; line-height: 1.2; }
+          .barcode { font-family: 'Libre Barcode 128', sans-serif; font-size: 40px; } /* Simulação */
         </style>
       </head>
       <body>
-        <div class="border header">DANFE - DOCUMENTO AUXILIAR DA NF-E (SIMULADOR SENAC)</div>
-        <div class="border">
-          <strong>NF:</strong> ${nota.numero_nf} | <strong>SERIE:</strong> ${nota.serie || '001'}<br>
-          <strong>CHAVE:</strong> <span class="key">${nota.chave_acesso || 'N/A'}</span><br>
-          <strong>EMITENTE:</strong> ${nota.emitente_cnpj || nota.emitente?.cnpj || 'N/A'}
+        <div class="container">
+          
+          <table>
+            <tr>
+              <td style="width: 80%;">
+                <span class="label">RECEBEMOS DE EMPRESA TESTE LTDA OS PRODUTOS CONSTANTES DA NOTA FISCAL INDICADA AO LADO</span>
+                <div style="display:flex; margin-top:5px;">
+                  <div style="width: 20%;"><span class="label">DATA DE RECEBIMENTO</span></div>
+                  <div style="width: 80%;"><span class="label">IDENTIFICAÇÃO E ASSINATURA DO RECEBEDOR</span></div>
+                </div>
+              </td>
+              <td style="width: 20%; text-align: center;">
+                <span class="bold">NF-e</span><br>
+                <span class="bold" style="font-size:12px;">Nº ${nota.numero_nf}</span><br>
+                <span class="label">SÉRIE 1</span>
+              </td>
+            </tr>
+          </table>
+
+          <table style="margin-top: 5px;">
+            <tr>
+              <td style="width: 35%; text-align: center;">
+                <div style="padding: 10px;">
+                    <strong style="font-size: 16px;">LOGOTIPO</strong><br>
+                    <span>EMPRESA TESTE LTDA</span>
+                </div>
+              </td>
+              <td style="width: 20%;" class="header-danfe">
+                <span class="bold">DANFE</span><br>
+                <span>Documento Auxiliar da Nota Fiscal Eletrônica</span><br>
+                <div style="display:flex; justify-content: space-around; margin-top:5px;">
+                  <span>0 - Entrada<br>1 - Saída</span>
+                  <span style="border: 1px solid #000; padding: 5px; font-size: 14px;">1</span>
+                </div>
+                <br>
+                <span class="bold">Nº ${nota.numero_nf}</span><br>
+                <span>SÉRIE: 1</span>
+              </td>
+              <td style="width: 45%;">
+                <span class="label">CONTROLE DO FISCO</span>
+                <div style="height: 40px; background: #eee; border: 1px dashed #000; text-align:center; padding-top:10px;">|||||||||||||||||||||||||||||| BARCODE ||||||||||||||||||||||||||||||</div>
+                <span class="label">CHAVE DE ACESSO</span>
+                <span class="value" style="font-size: 9px;">${nota.chave_acesso || '0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000'}</span>
+                <span class="label" style="text-align: center; margin-top:5px;">Consulta de autenticidade no portal nacional da NF-e</span>
+              </td>
+            </tr>
+          </table>
+
+          <table>
+            <tr>
+              <td style="width: 65%;"><span class="label">NATUREZA DA OPERAÇÃO</span><span class="value">VENDA DE MERCADORIA</span></td>
+              <td style="width: 35%;"><span class="label">PROTOCOLO DE AUTORIZAÇÃO DE USO</span><span class="value">143220000XXXXXX - 07/08/2026</span></td>
+            </tr>
+          </table>
+
+          <div style="margin-top: 5px; font-weight: bold;">DESTINATÁRIO / REMETENTE</div>
+          <table>
+            <tr>
+              <td style="width: 60%;"><span class="label">NOME / RAZÃO SOCIAL</span><span class="value">${nota.nome_cliente || 'DIONISIO DE BACO'}</span></td>
+              <td style="width: 25%;"><span class="label">CNPJ / CPF</span><span class="value">${nota.documento_cliente || '111.111.111-11'}</span></td>
+              <td style="width: 15%;"><span class="label">DATA EMISSÃO</span><span class="value">07/08/2026</span></td>
+            </tr>
+          </table>
+
+          <div style="margin-top: 5px; font-weight: bold;">CÁLCULO DO IMPOSTO</div>
+          <table>
+            <tr>
+              <td><span class="label">BASE CÁLC. ICMS</span><span class="value">R$ ${Number(nota.total_da_nota).toFixed(2)}</span></td>
+              <td><span class="label">VALOR ICMS</span><span class="value">R$ ${(nota.total_da_nota * 0.12).toFixed(2)}</span></td>
+              <td><span class="label">VALOR DO FRETE</span><span class="value">0,00</span></td>
+              <td><span class="label">VALOR TOTAL DA NOTA</span><span class="value">R$ ${Number(nota.total_da_nota).toFixed(2)}</span></td>
+            </tr>
+          </table>
+
+          <div style="margin-top: 5px; font-weight: bold;">TRANSPORTADOR / VOLUMES TRANSPORTADOS</div>
+          <table>
+            <tr>
+              <td style="width: 40%;"><span class="label">RAZÃO SOCIAL</span><span class="value">TRANSPORTES VALDEMAR</span></td>
+              <td style="width: 10%;"><span class="label">FRETE POR CONTA</span><span class="value">0-Emitente</span></td>
+              <td style="width: 20%;"><span class="label">PLACA DO VEÍCULO</span><span class="value">ABC-1234</span></td>
+              <td style="width: 10%;"><span class="label">UF</span><span class="value">RS</span></td>
+              <td style="width: 20%;"><span class="label">CNPJ/CPF</span><span class="value">00.000.000/0000-00</span></td>
+            </tr>
+          </table>
+
+          <div style="margin-top: 5px; font-weight: bold;">DADOS DOS PRODUTOS / SERVIÇOS</div>
+          <table>
+            <thead>
+              <tr style="background: #f2f2f2;">
+                <th>CÓDIGO</th>
+                <th>DESCRIÇÃO</th>
+                <th>NCM</th>
+                <th>CST</th>
+                <th>CFOP</th>
+                <th>UN</th>
+                <th>QTD</th>
+                <th>V.UNIT</th>
+                <th>V.TOTAL</th>
+                <th>%ICMS</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itensHtml}
+            </tbody>
+          </table>
+
+          <div style="margin-top: 5px; font-weight: bold;">DADOS ADICIONAIS</div>
+          <table style="height: 60px;">
+            <tr>
+              <td style="width: 50%;"><span class="label">INFORMAÇÕES COMPLEMENTARES</span><span class="value">EXEMPLO DE NOTA PARA FINS DIDÁTICOS - SIMULADOR SENAC.</span></td>
+              <td style="width: 50%;"><span class="label">RESERVADO AO FISCO</span></td>
+            </tr>
+          </table>
+
         </div>
-        <div class="border">
-          <strong>DESTINATARIO:</strong> ${nomeNota(nota)}<br>
-          <strong>DOCUMENTO:</strong> ${documentoNota(nota)}
-        </div>
-        <table>
-          <thead>
-            <tr><th>DESCRICAO</th><th>QTD</th><th>V. UNIT</th><th>V. TOTAL</th></tr>
-          </thead>
-          <tbody>${itensHtml}</tbody>
-        </table>
-        <div class="total"><strong>VALOR TOTAL: R$ ${Number(nota.total_da_nota).toFixed(2)}</strong></div>
-        <script>window.onload = () => { window.print(); window.close(); }<\/script>
+        <script>
+          window.onload = () => { 
+            // window.print(); 
+            // window.close(); 
+          }
+        <\/script>
       </body>
     </html>
   `);
@@ -286,7 +397,6 @@ onMounted(carregarNotas);
       <button :class="{ active: abaAtiva === 'formulario' }" @click="abaAtiva = 'formulario'">
         {{ editandoId ? 'Editar NF-e' : 'Emitir NF-e' }}
       </button>
-      <button :class="{ active: abaAtiva === 'exemplos' }" @click="abaAtiva = 'exemplos'">Exemplos</button>
     </nav>
 
     <section v-if="abaAtiva === 'dashboard'" class="dashboard">
@@ -463,27 +573,6 @@ onMounted(carregarNotas);
           </div>
         </footer>
       </form>
-    </section>
-
-    <section v-if="abaAtiva === 'exemplos'" class="panel">
-      <div class="panel-heading">
-        <div>
-          <p class="eyebrow">Aula demonstrativa</p>
-          <h2>Lancar exemplos</h2>
-        </div>
-      </div>
-
-      <div class="example-grid">
-        <article v-for="exemplo in exemplos" :key="exemplo.nome" class="example-card">
-          <h3>{{ exemplo.nome }}</h3>
-          <p>{{ exemplo.nota.destinatario.nome }}</p>
-          <strong>{{ moeda(exemplo.nota.itens.reduce((total, item) => total + item.valor_total_item, 0)) }}</strong>
-          <div class="actions">
-            <button class="secondary" @click="preencherExemplo(exemplo)">Editar antes</button>
-            <button :disabled="salvando" @click="lancarExemplo(exemplo)">Lancar agora</button>
-          </div>
-        </article>
-      </div>
     </section>
   </main>
 </template>
