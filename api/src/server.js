@@ -6,7 +6,7 @@ const PORT = process.env.PORT || 3000;
 initializeDatabase()
   .then(() => {
     app.listen(PORT, () => {
-      console.log(`Simulador SEFAZ rodando em http://localhost:${PORT}`);
+      console.log(`Simulador SEFAZ rodando em ${PORT}`);
     });
   })
   .catch((error) => {
