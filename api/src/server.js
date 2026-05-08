@@ -13,3 +13,6 @@ initializeDatabase()
     console.error('Falha ao inicializar o banco de dados:', error);
     process.exit(1);
   });
+
+
+  export default app;
