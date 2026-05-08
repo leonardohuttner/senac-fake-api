@@ -1,0 +1,19 @@
+{
+  "name": "sefaz-senac-backend",
+  "version": "1.0.0",
+  "description": "Simulador educacional SEFAZ para emissao de NF-e",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.14.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}
