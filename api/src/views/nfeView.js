@@ -13,6 +13,13 @@ function autorizada(nota) {
   };
 }
 
+function cancelada(nota) {
+  return {
+    mensagem: 'NF-e cancelada.',
+    nota
+  };
+}
+
 function atualizada(nota) {
   return {
     mensagem: 'NF-e atualizada.',
@@ -29,6 +36,7 @@ function erro(mensagem) {
 export default {
   recebida,
   autorizada,
+  cancelada,
   atualizada,
   erro
 };

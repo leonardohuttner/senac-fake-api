@@ -1,7 +1,7 @@
 import NfeModel from '../models/NfeModel.js';
 import nfeView from '../views/nfeView.js';
 
-const STATUS_VALIDOS = ['Pendente', 'Autorizada', 'Não Autorizada', 'Erro'];
+const STATUS_VALIDOS = ['Pendente', 'Autorizada', 'Cancelada', 'Não Autorizada', 'Erro'];
 const TAGS_XML_OBRIGATORIAS = ['infNFe', 'ide', 'emit', 'dest', 'det', 'prod', 'total', 'ICMSTot'];
 
 function somenteDigitos(valor) {
@@ -81,11 +81,16 @@ function extrairNotaDoXml(xml) {
       numero_nf: conteudoTag(ide, 'nNF'),
       serie: conteudoTag(ide, 'serie') || conteudoTag(ide, 'serieNF') || conteudoTag(ide, 'nSerie'),
       emitente: {
-        cnpj: conteudoTag(emit, 'CNPJ')
+        cnpj: conteudoTag(emit, 'CNPJ'),
+        nome: conteudoTag(emit, 'xNome') || 'Senac Comercio Educativo LTDA'
       },
       destinatario: {
         nome: conteudoTag(dest, 'xNome'),
-        documento: conteudoTag(dest, 'CNPJ') || conteudoTag(dest, 'CPF')
+        documento: conteudoTag(dest, 'CNPJ') || conteudoTag(dest, 'CPF'),
+        endereco: conteudoTag(dest, 'xLgr'),
+        cidade: conteudoTag(dest, 'xMun'),
+        uf: conteudoTag(dest, 'UF'),
+        cep: conteudoTag(dest, 'CEP')
       },
       itens,
       total_da_nota: Number(conteudoTag(total, 'vNF') || conteudoTag(total, 'total_da_nota') || 0),
@@ -142,18 +147,24 @@ function normalizarNota(body) {
   const numero = body.numero_nf || body.numero || body.numeroNota || '1';
   const destinatarioDocumento = body.destinatario?.documento || body.destinatario?.cpf || body.destinatario?.cnpj || body.destinatario_documento;
   const emitenteCnpj = body.emitente?.cnpj || body.emitente_cnpj;
+  const emitenteNome = body.emitente?.nome || body.emitente_nome || 'Senac Comercio Educativo LTDA';
 
   return {
     ...body,
     numero_nf: String(numero).replace(/\D/g, '').padStart(9, '0'),
     emitente: {
       ...(body.emitente || {}),
-      cnpj: somenteDigitos(emitenteCnpj)
+      cnpj: somenteDigitos(emitenteCnpj),
+      nome: emitenteNome
     },
     destinatario: {
       ...(body.destinatario || {}),
       nome: body.destinatario?.nome || body.destinatario_nome || '',
-      documento: somenteDigitos(destinatarioDocumento)
+      documento: somenteDigitos(destinatarioDocumento),
+      endereco: body.destinatario?.endereco || body.destinatario_endereco || '',
+      cidade: body.destinatario?.cidade || body.destinatario_cidade || '',
+      uf: body.destinatario?.uf || body.destinatario_uf || '',
+      cep: somenteDigitos(body.destinatario?.cep || body.destinatario_cep || '')
     },
     itens: Array.isArray(body.itens) ? body.itens : [],
     total_da_nota: Number(body.total_da_nota ?? body.valor_total ?? 0),
@@ -234,6 +245,17 @@ function gerarChaveAcesso(nota) {
   return `${chave43}${calcularDigitoVerificador(chave43)}`;
 }
 
+function gerarProtocolo(prefixo = '143') {
+  const agora = new Date();
+  const ano = agora.getFullYear();
+  const sequencial = String(Math.floor(Math.random() * 10000000000)).padStart(10, '0');
+
+  return {
+    numero: `${prefixo}${ano}${sequencial}`,
+    data: agora.toISOString()
+  };
+}
+
 function notaDaRequisicao(req) {
   if (typeof req.body === 'string') {
     return extrairNotaDoXml(req.body);
@@ -289,10 +311,38 @@ async function autorizar(req, res, next) {
     const atualizada = await NfeModel.update(nota.id, {
       ...nota,
       status: 'Autorizada',
-      chave_acesso: nota.chave_acesso || chaveAcesso
+      chave_acesso: nota.chave_acesso || chaveAcesso,
+      protocolo_autorizacao: nota.protocolo_autorizacao || gerarProtocolo('143')
     });
 
     responder(req, res, 200, nfeView.autorizada(atualizada), 'retAutorizacaoNFe');
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function cancelar(req, res, next) {
+  try {
+    const chaveAcesso = somenteDigitos(req.params.chaveAcesso);
+    const nota = await NfeModel.findByChaveAcesso(chaveAcesso);
+    if (!nota) {
+      responderErro(req, res, 404, 'Nota nao encontrada.');
+      return;
+    }
+
+    if (nota.status !== 'Autorizada') {
+      responderErro(req, res, 400, 'Somente notas com status Autorizada podem ser canceladas.');
+      return;
+    }
+
+    const atualizada = await NfeModel.update(nota.id, {
+      ...nota,
+      status: 'Cancelada',
+      protocolo_cancelamento: gerarProtocolo('135'),
+      justificativa_cancelamento: req.body?.justificativa || req.body?.motivo || 'Cancelamento solicitado pelo usuario.'
+    });
+
+    responder(req, res, 200, nfeView.cancelada(atualizada), 'retCancelamentoNFe');
   } catch (error) {
     next(error);
   }
@@ -379,11 +429,13 @@ function forcarJson(handler) {
 export default {
   receber,
   autorizar,
+  cancelar,
   listar,
   editar,
   validarXml,
   receberJson: forcarJson(receber),
   autorizarJson: forcarJson(autorizar),
+  cancelarJson: forcarJson(cancelar),
   listarJson: forcarJson(listar),
   editarJson: forcarJson(editar),
   validarXmlJson: forcarJson(validarXml)

@@ -4,10 +4,10 @@
   "private": true,
   "description": "Simulador educacional de ambiente SEFAZ para emissao de NF-e",
   "scripts": {
-    "install:all": "npm install --prefix backend && npm install --prefix frontend",
-    "dev:backend": "npm run dev --prefix backend",
+    "install:all": "npm install --prefix api && npm install --prefix frontend",
+    "dev:backend": "npm run dev --prefix api",
     "dev:frontend": "npm run dev --prefix frontend",
-    "start:backend": "npm start --prefix backend",
+    "start:backend": "npm start --prefix api",
     "build:frontend": "npm run build --prefix frontend"
   }
 }

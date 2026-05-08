@@ -68,6 +68,10 @@ Exemplo:
 
 Autoriza uma nota pendente pela chave de acesso de 44 caracteres e retorna XML. A chave e gerada na recepcao da NF-e, antes da autorizacao, para simular a consulta/operacao por chave em vez do ID interno do banco.
 
+### `POST /api/nfe/cancelar/:chaveAcesso`
+
+Cancela uma nota autorizada pela chave de acesso e retorna XML. A autorizacao gera `protocolo_autorizacao`; o cancelamento gera `protocolo_cancelamento` e muda o status para `Cancelada`.
+
 ### `GET /api/nfe`
 
 Lista as notas em XML. Antes de retornar, remove automaticamente as notas com mais de 90 dias.
@@ -86,6 +90,7 @@ As rotas JSON mantem o formato antigo da API:
 
 - `POST /api/nfe/json/receber`
 - `POST /api/nfe/json/autorizar/:chaveAcesso`
+- `POST /api/nfe/json/cancelar/:chaveAcesso`
 - `GET /api/nfe/json`
 - `PUT /api/nfe/json/:id`
 - `POST /api/nfe/json/validar-xml`
@@ -97,11 +102,16 @@ Exemplo JSON:
   "numero_nf": "000000001",
   "serie": "001",
   "emitente": {
+    "nome": "Senac Comercio Educativo LTDA",
     "cnpj": "12345678000190"
   },
   "destinatario": {
     "nome": "Aluno SENAC",
-    "documento": "12345678901"
+    "documento": "12345678901",
+    "endereco": "Rua Exemplo, 100",
+    "cidade": "Porto Alegre",
+    "uf": "RS",
+    "cep": "90000000"
   },
   "itens": [
     {

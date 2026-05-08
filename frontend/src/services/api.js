@@ -35,6 +35,13 @@ export function autorizarNota(chaveAcesso) {
   });
 }
 
+export function cancelarNota(chaveAcesso, justificativa = 'Cancelamento solicitado pelo usuario.') {
+  return request(`/nfe/json/cancelar/${chaveAcesso}`, {
+    method: 'POST',
+    body: JSON.stringify({ justificativa })
+  });
+}
+
 export function editarNota(id, nota) {
   return request(`/nfe/json/${id}`, {
     method: 'PUT',
